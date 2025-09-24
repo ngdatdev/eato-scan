@@ -1,6 +1,5 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -14,13 +13,14 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        <Stack.Screen name="dish-recognition" options={{ headerShown: false }} />
-        <Stack.Screen name="explore2" options={{ headerShown: false }} />
-      </Stack>
-      <StatusBar style="auto" />
+      <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="dish-recognition" options={{ headerShown: false }} />
+      <Stack.Screen name="nearby-restaurants" options={{ headerShown: false }} />
+      <Stack.Screen name="restaurant-detail" options={{ headerShown: false }} />
+      <Stack.Screen name="search" options={{ headerShown: false }} />
+    </Stack>
     </ThemeProvider>
   );
 }

@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 
-const DishRecognitionScreen = () => {
+const DishRecognitionScreen = () => { 
   const router = useRouter();
 
   return (
@@ -72,7 +72,10 @@ const DishRecognitionScreen = () => {
         {/* Action Buttons */}
         <View style={styles.actionButtonsSection}>
           {/* Primary Button */}
-          <TouchableOpacity style={styles.primaryButton}>
+          <TouchableOpacity 
+            style={styles.primaryButton}
+            onPress={() => router.push('/capture/find-nearby-res')}
+          >
             <Text style={styles.locationIcon}>📍</Text>
             <Text style={styles.primaryButtonText}>Find Nearby Restaurants</Text>
           </TouchableOpacity>
@@ -115,34 +118,11 @@ const DishRecognitionScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <View style={styles.navItems}>
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/')}>
-            <Text style={styles.navIcon}>🏠</Text>
-            <Text style={[styles.navText, styles.navTextInactive]}>Home</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/capture')}>
-            <Text style={styles.navIconActive}>📷</Text>
-            <Text style={[styles.navText, styles.navTextActive]}>Scan</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>❤️</Text>
-            <Text style={[styles.navText, styles.navTextInactive]}>Favorites</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.navItem}>
-            <Text style={styles.navIcon}>👤</Text>
-            <Text style={[styles.navText, styles.navTextInactive]}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      
     </SafeAreaView>
   );
 };
-
+ 
 const styles = StyleSheet.create({
   container: {
     flex: 1,

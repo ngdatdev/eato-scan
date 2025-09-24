@@ -16,12 +16,12 @@ const CaptureScreen = () => {
 
   const handleCapture = () => {
     // Navigate to dish recognition screen
-    router.push('/dish-recognition');
+    router.push('/capture/dish-recognition');
   };
 
   const handleGalleryPick = () => {
     // Navigate to dish recognition screen
-    router.push('/dish-recognition');
+    router.push('/capture/dish-recognition');
   };
   return (
     <SafeAreaView style={styles.container}>
@@ -39,7 +39,7 @@ const CaptureScreen = () => {
           <Text style={styles.settingsIcon}>⚙️</Text>
         </TouchableOpacity>
       </View>
-
+ 
       {/* Camera Frame Area */}
       <View style={styles.cameraSection}>
         <LinearGradient
@@ -55,13 +55,15 @@ const CaptureScreen = () => {
             
             {/* Pizza/Food Image */}
             <View style={styles.foodImageContainer}>
-              <Image
-                source={{
-                  uri: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=400&h=400&fit=crop&crop=center'
-                }}
-                style={styles.foodImage}
-                resizeMode="cover"
-              />
+              <TouchableOpacity onPress={handleCapture} activeOpacity={0.8}>
+                <Image
+                  source={{
+                    uri: '@/assets/images/background_cap2.png'
+                  }}
+                  style={styles.foodImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
               
               {/* Dotted overlay frame */}
               <View style={styles.dottedFrame} />

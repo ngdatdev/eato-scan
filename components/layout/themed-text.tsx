@@ -31,7 +31,7 @@ export function ThemedText({
       {...rest}
     />
   );
-}
+} 
 
 const styles = StyleSheet.create({
   default: {
