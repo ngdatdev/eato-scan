@@ -1,58 +1,85 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 
-export default function NearbyRestaurantsScreen() {
+export default function NearbyPlacesScreen() {
   const router = useRouter();
+  const webViewRef = useRef<any>(null);
 
-  const restaurants = [
-    {
-      id: 1,
-      name: 'Pasta Paradiso',
-      cuisine: 'Italian',
-      distance: '0.3 km away',
-      priceRange: '$12-25',
-      rating: '4.8',
-      image: require('@/assets/images/restaurant1.png'),
-    },
-    {
-      id: 2,
-      name: 'Burger Haven',
-      cuisine: 'American',
-      distance: '0.5 km away',
-      priceRange: '$8-18',
-      rating: '4.6',
-      image: require('@/assets/images/restaurant1.png'),
-    },
-    {
-      id: 3,
-      name: 'Sushi Master',
-      cuisine: 'Japanese',
-      distance: '0.7 km away',
-      priceRange: '$15-30',
-      rating: '4.9',
-      image: require('@/assets/images/restaurant1.png'),
-    },
-  ];
+  const [location, setLocation] = useState<any>("fpt da nang");
+  const [places, setPlaces] = useState<any[]>([]);
+  const [searchText, setSearchText] = useState("");
 
-  const mapPins = [
-    { id: 1, x: 80, y: 200, color: '#FF6B35' },
-    { id: 2, x: 300, y: 350, color: '#4ECDC4' },
-    { id: 3, x: 180, y: 450, color: '#FF6B35' },
-    { id: 4, x: 520, y: 320, color: '#FF6B35' },
-    { id: 5, x: 250, y: 680, color: '#FF6B35' },
-    { id: 6, x: 520, y: 580, color: '#FF6B35' },
-  ];
+  // Lấy vị trí hiện tại
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      const currentLoc = await Location.getCurrentPositionAsync({});
+      setLocation(currentLoc.coords);
+    })();
+  }, []);
+
+  // Gọi Photon API khi có search
+  useEffect(() => {
+    if (!location || !searchText) return;
+
+    const fetchPlaces = async () => {
+      try {
+        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+          searchText
+        )}&lat=${location.latitude}&lon=${location.longitude}&limit=10`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!data.features) return;
+
+        const mapped = data.features.map((f: any, idx: number) => {
+          const [lon, lat] = f.geometry.coordinates;
+          return {
+            id: idx,
+            name: f.properties.name || "(No name)",
+            city: f.properties.city || f.properties.country || "",
+            lat,
+            lng: lon,
+            rating: (Math.random() * 1 + 4).toFixed(1), // fake rating
+            image: require('@/assets/images/restaurant1.png'),
+          };
+        });
+
+        setPlaces(mapped);
+
+        // gửi danh sách marker xuống webview
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(JSON.stringify({ type: "markers", data: mapped }));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    fetchPlaces();
+  }, [location, searchText]);
+
+  // Gửi sự kiện focus vào marker
+  const focusMarker = (place: any) => {
+    if (webViewRef.current) {
+      webViewRef.current.postMessage(JSON.stringify({ type: "focus", data: place }));
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -61,110 +88,109 @@ export default function NearbyRestaurantsScreen() {
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#333" />
         </TouchableOpacity>
-        
+
         <View style={styles.searchContainer}>
           <Ionicons name="search-outline" size={20} color="#999" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search restaurants..."
+            placeholder="Search nearby (pho, coffee...)"
             placeholderTextColor="#999"
+            value={searchText}
+            onChangeText={setSearchText}
           />
         </View>
-        
-        <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="options-outline" size={20} color="#FF6B35" />
-        </TouchableOpacity>
       </View>
 
       {/* Map Section */}
       <View style={styles.mapContainer}>
-        <View style={styles.mapBackground}>
-          {/* Map Control Buttons */}
-          <View style={styles.mapControls}>
-            <TouchableOpacity style={styles.controlButton}>
-              <Ionicons name="locate-outline" size={20} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlButton}>
-              <Ionicons name="add" size={20} color="#666" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.controlButton}>
-              <Ionicons name="remove" size={20} color="#666" />
-            </TouchableOpacity>
-          </View>
+        {location && (
+         <WebView
+  ref={webViewRef}
+  originWhitelist={['*']}
+  javaScriptEnabled={true}
+  injectedJavaScript={`
+    (function() {
+      let map = L.map('map', { zoomControl: true })
+        .setView([${location.latitude}, ${location.longitude}], 14);
 
-          {/* Restaurant Pins */}
-          {mapPins.map((pin) => (
-            <View
-              key={pin.id}
-              style={[
-                styles.mapPin,
-                {
-                  left: pin.x,
-                  top: pin.y,
-                  backgroundColor: pin.color,
-                }
-              ]}
-            >
-              <Ionicons name="restaurant" size={16} color="#fff" />
-            </View>
-          ))}
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+      let you = L.marker([${location.latitude}, ${location.longitude}])
+        .addTo(map).bindPopup("You are here").openPopup();
 
-          {/* Current Location Pin */}
-          <View style={styles.currentLocationPin}>
-            <Ionicons name="location" size={20} color="#fff" />
-          </View>
+      let markers = {};
 
-          {/* Distance Circle */}
-          <View style={styles.distanceCircle} />
-        </View>
+      // Nhận message từ React Native
+      window.document.addEventListener('message', function(e) {
+        let msg = JSON.parse(e.data);
+        if (msg.type === "markers") {
+          // clear markers cũ
+          Object.values(markers).forEach(m => map.removeLayer(m));
+          markers = {};
+          msg.data.forEach(p => {
+            let m = L.marker([p.lat, p.lng]).addTo(map).bindPopup(p.name);
+            markers[p.id] = m;
+          });
+        }
+        if (msg.type === "focus") {
+          let p = msg.data;
+          if (markers[p.id]) {
+            map.flyTo([p.lat, p.lng], 20, { animate: true, duration: 1.5 });
+            markers[p.id].openPopup();
+          }
+        }
+      });
+    })();
+    true;
+  `}
+  source={{
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+        <style>
+          html, body, #map {height:100%; margin:0; padding:0}
+        </style>
+      </head>
+      <body>
+        <div id="map"></div>
+        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+      </body>
+      </html>
+    `,
+  }}
+  style={{ flex: 1 }}
+/>
+
+        )}
       </View>
 
       {/* Bottom Sheet */}
       <View style={styles.bottomSheet}>
-        <View style={styles.bottomSheetHandle} />
-        
         <View style={styles.restaurantHeader}>
-          <Text style={styles.restaurantTitle}>Nearby Restaurants</Text>
-          <Text style={styles.restaurantCount}>12 found</Text>
+          <Text style={styles.restaurantTitle}>Nearby Places</Text>
+          <Text style={styles.restaurantCount}>{places.length} found</Text>
         </View>
 
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.restaurantScroll}
-          contentContainerStyle={styles.restaurantScrollContent}
-        >
-          {restaurants.map((restaurant) => (
-            <TouchableOpacity 
-              key={restaurant.id} 
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {places.map((p) => (
+            <TouchableOpacity
+              key={p.id}
               style={styles.restaurantCard}
-              onPress={() => router.push(`/restaurant-detail?restaurantId=${restaurant.id}`)}
+              onPress={() => focusMarker(p)}
             >
               <View style={styles.restaurantImageContainer}>
-                <Image source={restaurant.image} style={styles.restaurantImage} />
+                <Image source={p.image} style={styles.restaurantImage} />
                 <View style={styles.ratingBadge}>
                   <Ionicons name="star" size={12} color="#FFD700" />
-                  <Text style={styles.ratingText}>{restaurant.rating}</Text>
+                  <Text style={styles.ratingText}>{p.rating}</Text>
                 </View>
               </View>
-              
               <View style={styles.restaurantInfo}>
-                <Text style={styles.restaurantName}>{restaurant.name}</Text>
-                <Text style={styles.restaurantDetails}>
-                  {restaurant.cuisine} • {restaurant.distance}
-                </Text>
-                <View style={styles.restaurantFooter}>
-                  <Text style={styles.priceRange}>{restaurant.priceRange}</Text>
-                  <TouchableOpacity 
-                    style={styles.viewMenuButton}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      router.push(`/restaurant-detail?restaurantId=${restaurant.id}`);
-                    }}
-                  >
-                    <Text style={styles.viewMenuText}>View Menu</Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.restaurantName}>{p.name}</Text>
+                <Text style={styles.restaurantDetails}>{p.city}</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -173,6 +199,10 @@ export default function NearbyRestaurantsScreen() {
     </SafeAreaView>
   );
 }
+
+
+
+
 
 const styles = StyleSheet.create({
   container: {
@@ -335,6 +365,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#333',
+  },
+   customMarker: {
+    backgroundColor: '#FF6B35',
+    padding: 6,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   restaurantCount: {
     fontSize: 14,
