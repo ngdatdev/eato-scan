@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Image,
@@ -16,68 +16,91 @@ import { WebView } from 'react-native-webview';
 
 export default function NearbyPlacesScreen() {
   const router = useRouter();
+  const { keyword } = useLocalSearchParams(); // Nhận param từ component cha
   const webViewRef = useRef<any>(null);
 
-  const [location, setLocation] = useState<any>("fpt da nang");
+  const [location, setLocation] = useState<any>(null);
   const [places, setPlaces] = useState<any[]>([]);
-  const [searchText, setSearchText] = useState("");
 
-  // Lấy vị trí hiện tại
+  // ✅ Dùng giá trị mặc định nếu không truyền param
+  const defaultSearch = 'quán bún bò';
+  const initialSearchText = Array.isArray(keyword)
+    ? keyword[0] || defaultSearch
+    : keyword || defaultSearch;
+  const [searchText, setSearchText] = useState<string>(initialSearchText);
+
+  // ✅ Lấy vị trí hiện tại
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
+      if (status !== 'granted') {
+        console.warn('Permission to access location was denied');
+        return;
+      }
       const currentLoc = await Location.getCurrentPositionAsync({});
       setLocation(currentLoc.coords);
     })();
   }, []);
 
-  // Gọi Photon API khi có search
+  // ✅ Tự động gọi SerpAPI khi có vị trí
   useEffect(() => {
     if (!location || !searchText) return;
 
     const fetchPlaces = async () => {
       try {
-        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(
+        // ⚡ Gọi qua proxy Express (chạy trên máy dev), thêm hl=vi để trả về tiếng Việt
+        const url = `http://192.168.1.150:3000/api/maps?q=${encodeURIComponent(
           searchText
-        )}&lat=${location.latitude}&lon=${location.longitude}&limit=10`;
+        )}&lat=${location.latitude}&lon=${location.longitude}&hl=vi`;
 
         const res = await fetch(url);
         const data = await res.json();
 
-        if (!data.features) return;
+        const results = data.local_results || [];
+        if (results.length === 0) return;
 
-        const mapped = data.features.map((f: any, idx: number) => {
-          const [lon, lat] = f.geometry.coordinates;
-          return {
+        const mapped = results
+          .filter((r: any) => r.gps_coordinates)
+          .map((r: any, idx: number) => ({
             id: idx,
-            name: f.properties.name || "(No name)",
-            city: f.properties.city || f.properties.country || "",
-            lat,
-            lng: lon,
-            rating: (Math.random() * 1 + 4).toFixed(1), // fake rating
-            image: require('@/assets/images/restaurant1.png'),
-          };
-        });
+            name: r.title || '(Không tên)',
+            address: r.address || '',
+            lat: r.gps_coordinates.latitude,
+            lng: r.gps_coordinates.longitude,
+            rating: r.rating ? r.rating.toFixed(1) : '',
+            reviews: r.reviews || 0,
+            type: r.type || '',
+            open_state: r.open_state || '',
+            phone: r.phone || '',
+            website: r.website || '',
+            thumbnail: r.thumbnail || null,
+            // fallback ảnh nếu không có thumbnail
+            image: r.thumbnail ? { uri: r.thumbnail } : require('../../../assets/images/restaurant1.png')
+           ,
+          }));
 
         setPlaces(mapped);
 
-        // gửi danh sách marker xuống webview
+        // Gửi markers xuống WebView
         if (webViewRef.current) {
-          webViewRef.current.postMessage(JSON.stringify({ type: "markers", data: mapped }));
+          webViewRef.current.postMessage(
+            JSON.stringify({ type: 'markers', data: mapped })
+          );
         }
       } catch (err) {
-        console.error(err);
+        console.error('SerpAPI fetch error:', err);
       }
     };
 
     fetchPlaces();
   }, [location, searchText]);
 
-  // Gửi sự kiện focus vào marker
+  // ✅ Khi nhấn vào 1 địa điểm trong danh sách
   const focusMarker = (place: any) => {
     if (webViewRef.current) {
-      webViewRef.current.postMessage(JSON.stringify({ type: "focus", data: place }));
+      webViewRef.current.postMessage(
+        JSON.stringify({ type: 'focus', data: place })
+      );
     }
   };
 
@@ -97,6 +120,8 @@ export default function NearbyPlacesScreen() {
             placeholderTextColor="#999"
             value={searchText}
             onChangeText={setSearchText}
+            returnKeyType="search"
+            onSubmitEditing={() => setSearchText((searchText || '').trim())}
           />
         </View>
       </View>
@@ -104,66 +129,79 @@ export default function NearbyPlacesScreen() {
       {/* Map Section */}
       <View style={styles.mapContainer}>
         {location && (
-         <WebView
-  ref={webViewRef}
-  originWhitelist={['*']}
-  javaScriptEnabled={true}
-  injectedJavaScript={`
-    (function() {
-      let map = L.map('map', { zoomControl: true })
-        .setView([${location.latitude}, ${location.longitude}], 14);
+          <WebView
+            ref={webViewRef}
+            originWhitelist={['*']}
+            javaScriptEnabled={true}
+            mixedContentMode="always"
+            onError={e => { console.log('WebView error:', e.nativeEvent); }}
+            onLoadEnd={() => { console.log('WebView loaded'); }}
+            injectedJavaScript={`
+              (function() {
+                let map = L.map('map', { zoomControl: true })
+                  .setView([${location.latitude}, ${location.longitude}], 14);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-      let you = L.marker([${location.latitude}, ${location.longitude}])
-        .addTo(map).bindPopup("You are here").openPopup();
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                  attribution: '© OpenStreetMap'
+                }).addTo(map);
 
-      let markers = {};
+                let you = L.marker([${location.latitude}, ${location.longitude}])
+                  .addTo(map)
+                  .bindPopup("📍 Bạn đang ở đây")
+                  .openPopup();
 
-      // Nhận message từ React Native
-      window.document.addEventListener('message', function(e) {
-        let msg = JSON.parse(e.data);
-        if (msg.type === "markers") {
-          // clear markers cũ
-          Object.values(markers).forEach(m => map.removeLayer(m));
-          markers = {};
-          msg.data.forEach(p => {
-            let m = L.marker([p.lat, p.lng]).addTo(map).bindPopup(p.name);
-            markers[p.id] = m;
-          });
-        }
-        if (msg.type === "focus") {
-          let p = msg.data;
-          if (markers[p.id]) {
-            map.flyTo([p.lat, p.lng], 20, { animate: true, duration: 1.5 });
-            markers[p.id].openPopup();
-          }
-        }
-      });
-    })();
-    true;
-  `}
-  source={{
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
-        <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-        <style>
-          html, body, #map {height:100%; margin:0; padding:0}
-        </style>
-      </head>
-      <body>
-        <div id="map"></div>
-        <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-      </body>
-      </html>
-    `,
-  }}
-  style={{ flex: 1 }}
-/>
+                let markers = {};
 
+                window.document.addEventListener('message', function(e) {
+                  let msg = JSON.parse(e.data);
+                  if (msg.type === "markers") {
+                    Object.values(markers).forEach(m => map.removeLayer(m));
+                    markers = {};
+                    msg.data.forEach(p => {
+                      let popupContent = \`<b>\${p.name}</b><br/>\${p.address || ''}\`;
+                      if (p.rating) popupContent += \`<br/>⭐ \${p.rating} (\${p.reviews || 0} đánh giá)\`;
+                      if (p.open_state) popupContent += \`<br/><span style='color:green'>\${p.open_state}</span>\`;
+                      let m = L.marker([p.lat, p.lng]).addTo(map).bindPopup(popupContent);
+                      markers[p.id] = m;
+                    });
+                  }
+                  if (msg.type === "focus") {
+                    let p = msg.data;
+                    if (markers[p.id]) {
+                      map.flyTo([p.lat, p.lng], 18, { animate: true, duration: 1.5 });
+                      markers[p.id].openPopup();
+                    }
+                  }
+                });
+              })();
+              true;
+            `}
+            source={{
+              html: `
+                <!DOCTYPE html>
+                <html lang="vi">
+                <head>
+                  <meta charset="UTF-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+                  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+                  <style>
+                    html, body {height:100%; margin:0; padding:0}
+                  </style>
+                </head>
+                <body>
+                  <div id="map" style="height:100vh;width:100vw"></div>
+                  <script>
+                    window.onerror = function(msg, url, line, col, error) {
+                      document.body.innerHTML = '<pre style="color:red">'+msg+'</pre>';
+                    };
+                  </script>
+                  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+                </body>
+                </html>
+              `,
+            }}
+            style={{ flex: 1 }}
+          />
         )}
       </View>
 
@@ -183,14 +221,25 @@ export default function NearbyPlacesScreen() {
             >
               <View style={styles.restaurantImageContainer}>
                 <Image source={p.image} style={styles.restaurantImage} />
-                <View style={styles.ratingBadge}>
-                  <Ionicons name="star" size={12} color="#FFD700" />
-                  <Text style={styles.ratingText}>{p.rating}</Text>
-                </View>
+                {p.rating && (
+                  <View style={styles.ratingBadge}>
+                    <Ionicons name="star" size={12} color="#FFD700" />
+                    <Text style={styles.ratingText}>{p.rating}</Text>
+                  </View>
+                )}
               </View>
               <View style={styles.restaurantInfo}>
                 <Text style={styles.restaurantName}>{p.name}</Text>
-                <Text style={styles.restaurantDetails}>{p.city}</Text>
+                <Text style={styles.restaurantDetails}>{p.address}</Text>
+                {p.open_state ? (
+                  <Text style={{ color: '#388e3c', fontSize: 13 }}>{p.open_state}</Text>
+                ) : null}
+                {p.reviews ? (
+                  <Text style={{ color: '#999', fontSize: 13 }}>{p.reviews} đánh giá</Text>
+                ) : null}
+                {p.type ? (
+                  <Text style={{ color: '#666', fontSize: 13 }}>{p.type}</Text>
+                ) : null}
               </View>
             </TouchableOpacity>
           ))}
@@ -199,10 +248,6 @@ export default function NearbyPlacesScreen() {
     </SafeAreaView>
   );
 }
-
-
-
-
 
 const styles = StyleSheet.create({
   container: {
