@@ -1,4 +1,4 @@
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
   Image,
@@ -11,8 +11,15 @@ import {
   View,
 } from 'react-native';
 
+const { photoUri, name, description } = useLocalSearchParams() as {
+  photoUri?: string
+  name?: string
+  description?: string
+}
+
 const DishRecognitionScreen = () => { 
   const router = useRouter();
+  const { photoUri } = useLocalSearchParams() as { photoUri?: string };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -34,7 +41,7 @@ const DishRecognitionScreen = () => {
         <View style={styles.imageSection}>
           <Image
             source={{
-              uri: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=600&h=400&fit=crop&crop=center'
+              uri: photoUri ?? 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=600&h=400&fit=crop&crop=center'
             }}
             style={styles.foodImage}
             resizeMode="cover"
