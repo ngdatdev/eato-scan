@@ -3,7 +3,7 @@
 import { LinearGradient } from "expo-linear-gradient"
 import { useRouter } from "expo-router"
 import { useEffect, useRef, useState } from "react"
-import { Alert, Image, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native"
+import { ActivityIndicator, Alert, Image, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
 // eslint-disable-next-line import/no-unresolved
 import * as ExpoCamera from "expo-camera"
@@ -16,9 +16,11 @@ const CaptureScreen = () => {
   const [cameraType, setCameraType] = useState<"back" | "front">("back")
   const [isCapturing, setIsCapturing] = useState(false)
   const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false) // <-- thêm dòng này
+
 
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       try {
         const { status } = await ExpoCamera.Camera.requestCameraPermissionsAsync()
         setHasPermission(status === "granted")
@@ -68,13 +70,61 @@ const CaptureScreen = () => {
     setCapturedPhotoUri(null)
   }
 
-  const handleUsePhoto = () => {
-    if (capturedPhotoUri) {
-      router.push({ pathname: "/capture/dish-recognition", params: { photoUri: capturedPhotoUri } })
-    } else {
-      router.push("/capture/dish-recognition")
+  const handleUsePhoto = async () => {
+    if (!capturedPhotoUri) return;
+    setIsLoading(true) // bật loading
+
+    try {
+      // Lấy phần extension từ URI
+      const fileExtension = capturedPhotoUri.split('.').pop() || 'jpg';
+      // Xác định mime type tương ứng
+      const mimeType = `image/${fileExtension.toLowerCase() === 'heic' ? 'jpeg' : fileExtension.toLowerCase()}`;
+
+      // Chuẩn bị form-data
+      const formData = new FormData();
+      formData.append("Image", {
+        uri: capturedPhotoUri,
+        name: `photo.${fileExtension}`,
+        type: mimeType,
+      } as any);
+
+      // Gọi API nhận dạng món ăn
+      const response = await fetch(
+        "https://senatorial-florrie-drillable.ngrok-free.dev/api/FoodRecognition/analyze",
+        {
+          method: "POST",
+          headers: {
+            "accept": "text/plain",
+            "Content-Type": "multipart/form-data",
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("API request failed");
+      }
+
+      const result = await response.json(); // { name, description }
+
+      // Điều hướng sang trang dish-recognition và truyền dữ liệu
+      router.push({
+        pathname: "/capture/dish-recognition",
+        params: {
+          photoUri: capturedPhotoUri,
+          name: result.name,
+          description: result.description,
+        },
+      });
+    } catch (err) {
+      console.warn("Error sending image:", err);
+      Alert.alert("Error", "Failed to analyze the image. Please try again.");
     }
-  }
+    finally {
+      setIsLoading(false) // <-- thêm
+    }
+  };
+
 
   const handleGalleryPick = async () => {
     try {
@@ -108,6 +158,13 @@ const CaptureScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#FF6B35" />
+          <Text style={styles.loadingText}>Analyzing...</Text>
+        </View>
+      )}
+
       {/* Camera Frame Area */}
       <View style={styles.cameraSection}>
         <LinearGradient colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.6)"]}>
@@ -582,6 +639,24 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "600",
   },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 99,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+
 })
 
 export default CaptureScreen
