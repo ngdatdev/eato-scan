@@ -45,7 +45,7 @@ export default function DishRecognitionScreen() {
           <TouchableOpacity 
             style={styles.doneButton} 
             onPress={() => {
-              const searchQuery = `quán ${name || ''} ${description || ''}`.trim();
+              const searchQuery = `quán ${name || ''}`.trim();
               router.push({
                 pathname: "/(tabs)/capture/find-nearby-res",
                 params: { initialSearch: searchQuery }
