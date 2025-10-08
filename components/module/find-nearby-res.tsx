@@ -1,9 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { API_CONFIG, createUrl } from '@/constants/config';
+import React, { useEffect, useState } from 'react';
 import {
+  Animated,
   Image,
+  Linking,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -12,50 +16,97 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
+
+const SkeletonPlaceCard = () => {
+  const animatedValue = React.useMemo(() => new Animated.Value(0), []);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [animatedValue]);
+
+  const opacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.7],
+  });
+
+  return (
+    <View style={styles.restaurantCard}>
+      <Animated.View style={[styles.skeletonImage, styles.skeleton, { opacity }]} />
+      <View style={styles.restaurantInfo}>
+        <Animated.View style={[styles.skeletonTitle, styles.skeleton, { opacity }]} />
+        <Animated.View style={[styles.skeletonText, styles.skeleton, { opacity }]} />
+        <Animated.View style={[styles.skeletonText, styles.skeleton, { opacity }]} />
+      </View>
+    </View>
+  );
+};
 
 export default function NearbyPlacesScreen() {
   const router = useRouter();
-  const { keyword } = useLocalSearchParams(); // Nhận param từ component cha
-  const webViewRef = useRef<any>(null);
-
+  const { initialSearch } = useLocalSearchParams<{ initialSearch: string }>();
+  
   const [location, setLocation] = useState<any>(null);
   const [places, setPlaces] = useState<any[]>([]);
+  const [searchText, setSearchText] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  // ✅ Dùng giá trị mặc định nếu không truyền param
-  const defaultSearch = 'quán bún bò';
-  const initialSearchText = Array.isArray(keyword)
-    ? keyword[0] || defaultSearch
-    : keyword || defaultSearch;
-  const [searchText, setSearchText] = useState<string>(initialSearchText);
-
-  // ✅ Lấy vị trí hiện tại
+  // ✅ Lấy vị trí hiện tại và tự động tìm địa điểm gần đó
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        console.warn('Permission to access location was denied');
-        return;
+      try {
+        // Yêu cầu quyền truy cập vị trí
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.warn('Permission to access location was denied');
+          return;
+        }
+
+        // Lấy vị trí hiện tại với độ chính xác cao
+        const currentLoc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        setLocation(currentLoc.coords);
+
+        // Use initial search if provided, otherwise use default search
+        const searchQuery = initialSearch || 'quán ăn gần đây';
+        setSearchText(searchQuery);
+      } catch (error) {
+        console.error('Error getting location:', error);
       }
-      const currentLoc = await Location.getCurrentPositionAsync({});
-      setLocation(currentLoc.coords);
     })();
-  }, []);
+  }, [initialSearch]);
 
   // ✅ Tự động gọi SerpAPI khi có vị trí
   useEffect(() => {
     if (!location || !searchText) return;
 
     const fetchPlaces = async () => {
+      setIsLoading(true);
       try {
         // ⚡ Gọi qua proxy Express (chạy trên máy dev), thêm hl=vi để trả về tiếng Việt
-        const url = `http://192.168.1.150:3000/api/maps?q=${encodeURIComponent(
-          searchText
-        )}&lat=${location.latitude}&lon=${location.longitude}&hl=vi`;
+        const url = createUrl(API_CONFIG.MAPS_API, {
+          q: searchText,
+          lat: location.latitude,
+          lon: location.longitude,
+          hl: 'vi'
+        });
 
         const res = await fetch(url);
         const data = await res.json();
-
+ 
         const results = data.local_results || [];
         if (results.length === 0) return;
 
@@ -79,28 +130,29 @@ export default function NearbyPlacesScreen() {
            ,
           }));
 
-        setPlaces(mapped);
-
-        // Gửi markers xuống WebView
-        if (webViewRef.current) {
-          webViewRef.current.postMessage(
-            JSON.stringify({ type: 'markers', data: mapped })
-          );
-        }
+        // Giới hạn chỉ lấy 10 địa điểm gần nhất
+        setPlaces(mapped.slice(0, 10));
       } catch (err) {
         console.error('SerpAPI fetch error:', err);
+      } finally {
+        setIsLoading(false);
       }
     };
 
     fetchPlaces();
   }, [location, searchText]);
 
-  // ✅ Khi nhấn vào 1 địa điểm trong danh sách
-  const focusMarker = (place: any) => {
-    if (webViewRef.current) {
-      webViewRef.current.postMessage(
-        JSON.stringify({ type: 'focus', data: place })
-      );
+  // Mở Google Maps khi click vào địa điểm
+  const openInGoogleMaps = (place: any) => {
+    const latLng = `${place.lat},${place.lng}`;
+    const label = encodeURIComponent(place.name);
+
+    if (Platform.OS === 'ios') {
+      // Format cho Apple Maps
+      Linking.openURL(`http://maps.apple.com/?q=${label}&ll=${latLng}`);
+    } else {
+      // Format cho Google Maps trên Android
+      Linking.openURL(`geo:${latLng}?q=${latLng}(${label})`);
     }
   };
 
@@ -126,98 +178,24 @@ export default function NearbyPlacesScreen() {
         </View>
       </View>
 
-      {/* Map Section */}
-      <View style={styles.mapContainer}>
-        {location && (
-          <WebView
-            ref={webViewRef}
-            originWhitelist={['*']}
-            javaScriptEnabled={true}
-            mixedContentMode="always"
-            onError={e => { console.log('WebView error:', e.nativeEvent); }}
-            onLoadEnd={() => { console.log('WebView loaded'); }}
-            injectedJavaScript={`
-              (function() {
-                let map = L.map('map', { zoomControl: true })
-                  .setView([${location.latitude}, ${location.longitude}], 14);
-
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                  attribution: '© OpenStreetMap'
-                }).addTo(map);
-
-                let you = L.marker([${location.latitude}, ${location.longitude}])
-                  .addTo(map)
-                  .bindPopup("📍 Bạn đang ở đây")
-                  .openPopup();
-
-                let markers = {};
-
-                window.document.addEventListener('message', function(e) {
-                  let msg = JSON.parse(e.data);
-                  if (msg.type === "markers") {
-                    Object.values(markers).forEach(m => map.removeLayer(m));
-                    markers = {};
-                    msg.data.forEach(p => {
-                      let popupContent = \`<b>\${p.name}</b><br/>\${p.address || ''}\`;
-                      if (p.rating) popupContent += \`<br/>⭐ \${p.rating} (\${p.reviews || 0} đánh giá)\`;
-                      if (p.open_state) popupContent += \`<br/><span style='color:green'>\${p.open_state}</span>\`;
-                      let m = L.marker([p.lat, p.lng]).addTo(map).bindPopup(popupContent);
-                      markers[p.id] = m;
-                    });
-                  }
-                  if (msg.type === "focus") {
-                    let p = msg.data;
-                    if (markers[p.id]) {
-                      map.flyTo([p.lat, p.lng], 18, { animate: true, duration: 1.5 });
-                      markers[p.id].openPopup();
-                    }
-                  }
-                });
-              })();
-              true;
-            `}
-            source={{
-              html: `
-                <!DOCTYPE html>
-                <html lang="vi">
-                <head>
-                  <meta charset="UTF-8" />
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
-                  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-                  <style>
-                    html, body {height:100%; margin:0; padding:0}
-                  </style>
-                </head>
-                <body>
-                  <div id="map" style="height:100vh;width:100vw"></div>
-                  <script>
-                    window.onerror = function(msg, url, line, col, error) {
-                      document.body.innerHTML = '<pre style="color:red">'+msg+'</pre>';
-                    };
-                  </script>
-                  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-                </body>
-                </html>
-              `,
-            }}
-            style={{ flex: 1 }}
-          />
-        )}
-      </View>
-
-      {/* Bottom Sheet */}
-      <View style={styles.bottomSheet}>
+      {/* Places List */}
+      <View style={styles.content}>
         <View style={styles.restaurantHeader}>
           <Text style={styles.restaurantTitle}>Nearby Places</Text>
           <Text style={styles.restaurantCount}>{places.length} found</Text>
         </View>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {places.map((p) => (
+        <ScrollView style={styles.restaurantList} showsVerticalScrollIndicator={false}>
+          {isLoading ? 
+            Array.from({ length: 3 }).map((_, index) => (
+              <SkeletonPlaceCard key={index} />
+            ))
+           : 
+            places.map((p) => (
             <TouchableOpacity
               key={p.id}
               style={styles.restaurantCard}
-              onPress={() => focusMarker(p)}
+              onPress={() => openInGoogleMaps(p)}
             >
               <View style={styles.restaurantImageContainer}>
                 <Image source={p.image} style={styles.restaurantImage} />
@@ -240,6 +218,13 @@ export default function NearbyPlacesScreen() {
                 {p.type ? (
                   <Text style={{ color: '#666', fontSize: 13 }}>{p.type}</Text>
                 ) : null}
+                <TouchableOpacity 
+                  style={styles.openInMapsButton}
+                  onPress={() => openInGoogleMaps(p)}
+                >
+                  <Ionicons name="navigate" size={16} color="#fff" />
+                  <Text style={styles.openInMapsText}>Navigate</Text>
+                </TouchableOpacity>
               </View>
             </TouchableOpacity>
           ))}
@@ -253,6 +238,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  content: {
+    flex: 1,
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+  },
+  restaurantList: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',
@@ -429,8 +422,7 @@ const styles = StyleSheet.create({
     paddingRight: 20,
   },
   restaurantCard: {
-    width: 280,
-    marginRight: 16,
+    width: '100%',
     backgroundColor: '#fff',
     borderRadius: 16,
     shadowColor: '#000',
@@ -438,7 +430,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   restaurantImageContainer: {
     position: 'relative',
@@ -501,4 +493,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  openInMapsButton: {
+    marginTop: 12,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  openInMapsText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  skeleton: {
+    backgroundColor: '#E1E9EE',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  skeletonImage: {
+    width: '100%',
+    height: 160,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  skeletonTitle: {
+    width: '80%',
+    height: 24,
+    marginBottom: 8,
+  },
+  skeletonText: {
+    width: '60%',
+    height: 16,
+    marginBottom: 8,
+  }
 });

@@ -1,11 +1,12 @@
 "use client"
 
+import { API_CONFIG } from '@/constants/config'
 import { LinearGradient } from "expo-linear-gradient"
 import { useRouter } from "expo-router"
 import { useEffect, useRef, useState } from "react"
 import { ActivityIndicator, Alert, Image, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
-// eslint-disable-next-line import/no-unresolved
+ 
 import * as ExpoCamera from "expo-camera"
 import * as ImagePicker from "expo-image-picker"
 
@@ -90,7 +91,7 @@ const CaptureScreen = () => {
 
       // Gọi API nhận dạng món ăn
       const response = await fetch(
-        "https://senatorial-florrie-drillable.ngrok-free.dev/api/FoodRecognition/analyze",
+        API_CONFIG.FOOD_RECOGNITION_API,
         {
           method: "POST",
           headers: {
@@ -98,7 +99,7 @@ const CaptureScreen = () => {
             "Content-Type": "multipart/form-data",
           },
           body: formData,
-        }
+        } 
       );
 
       if (!response.ok) {

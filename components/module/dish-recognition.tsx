@@ -42,8 +42,17 @@ export default function DishRecognitionScreen() {
             <Text style={styles.retakeText}>🔁 Scan Another Dish</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.doneButton} onPress={() => router.push("/")}>
-            <Text style={styles.doneText}>✅ Done</Text>
+          <TouchableOpacity 
+            style={styles.doneButton} 
+            onPress={() => {
+              const searchQuery = `quán ${name || ''} ${description || ''}`.trim();
+              router.push({
+                pathname: "/(tabs)/capture/find-nearby-res",
+                params: { initialSearch: searchQuery }
+              });
+            }}
+          >
+            <Text style={styles.doneText}>Find near restaurant</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

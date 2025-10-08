@@ -2,13 +2,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function RestaurantDetailScreen() {
@@ -24,7 +24,7 @@ export default function RestaurantDetailScreen() {
     reviewCount: '324',
     priceLevel: '$$',
     cuisine: 'Italian',
-    distance: '1.2 km',
+    distance: '1.2 km', 
     address: '123 Main Street, Downtown',
     status: 'Open',
     closingTime: '11:00 PM',
