@@ -1,374 +1,153 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import {
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+"use client"
 
-const { photoUri, name, description } = useLocalSearchParams() as {
-  photoUri?: string
-  name?: string
-  description?: string
-}
+import { LinearGradient } from "expo-linear-gradient"
+import { useLocalSearchParams, useRouter } from "expo-router"
+import { Image, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
-const DishRecognitionScreen = () => { 
-  const router = useRouter();
-  const { photoUri } = useLocalSearchParams() as { photoUri?: string };
+export default function DishRecognitionScreen() {
+  const router = useRouter()
+  const { photoUri, name, description } = useLocalSearchParams<{
+    photoUri?: string
+    name?: string
+    description?: string
+  }>()
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
+
+      <LinearGradient colors={["#fff", "#f8f8f8"]} style={styles.header}>
         <Text style={styles.headerTitle}>Dish Recognition</Text>
-        <TouchableOpacity style={styles.shareButton}>
-          <Text style={styles.shareIcon}>⋯</Text>
-        </TouchableOpacity>
-      </View>
+      </LinearGradient>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Food Image Section */}
-        <View style={styles.imageSection}>
-          <Image
-            source={{
-              uri: photoUri ?? 'https://images.unsplash.com/photo-1565299624946-b28f40a0ca4b?w=600&h=400&fit=crop&crop=center'
-            }}
-            style={styles.foodImage}
-            resizeMode="cover"
-          />
-          
-          {/* Rating Badge */}
-          <View style={styles.ratingBadge}>
-            <Text style={styles.ratingIcon}>⭐</Text>
-            <Text style={styles.ratingText}>4.8</Text>
+      <ScrollView contentContainerStyle={styles.content}>
+        {/* Ảnh món ăn */}
+        {photoUri && (
+          <View style={styles.imageContainer}>
+            <Image source={{ uri: photoUri }} style={styles.dishImage} resizeMode="cover" />
           </View>
-        </View>
+        )}
 
-        {/* Dish Info Section */}
-        <View style={styles.dishInfoSection}>
-          <Text style={styles.dishName}>Margherita Pizza</Text>
-          
+        {/* Thông tin món ăn */}
+        <View style={styles.resultContainer}>
+          <Text style={styles.dishName}>{name || "Unknown Dish"}</Text>
           <Text style={styles.dishDescription}>
-            A classic Italian pizza topped with fresh tomato sauce, creamy mozzarella cheese, and aromatic basil leaves. This traditional recipe originated in Naples and represents the colors of the Italian flag.
+            {description || "We couldn't retrieve the description for this dish."}
           </Text>
-
-          {/* Rating Section */}
-          <View style={styles.ratingSection}>
-            <View style={styles.starsContainer}>
-              <Text style={styles.star}>⭐</Text>
-              <Text style={styles.star}>⭐</Text>
-              <Text style={styles.star}>⭐</Text>
-              <Text style={styles.star}>⭐</Text>
-              <Text style={styles.starEmpty}>☆</Text>
-              <Text style={styles.ratingValue}>4.8</Text>
-            </View>
-            <Text style={styles.reviewsCount}>2,847 reviews</Text>
-          </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionButtonsSection}>
-          {/* Primary Button */}
-          <TouchableOpacity 
-            style={styles.primaryButton}
-            onPress={() => router.push('/capture/find-nearby-res')}
-          >
-            <Text style={styles.locationIcon}>📍</Text>
-            <Text style={styles.primaryButtonText}>Find Nearby Restaurants</Text>
+        {/* Nút hành động */}
+        <View style={styles.actions}>
+          <TouchableOpacity style={styles.retakeButton} onPress={() => router.back()}>
+            <Text style={styles.retakeText}>🔁 Scan Another Dish</Text>
           </TouchableOpacity>
 
-          {/* Secondary Buttons */}
-          <View style={styles.secondaryButtons}>
-            <TouchableOpacity style={styles.secondaryButton}>
-              <Text style={styles.secondaryIcon}>🍽️</Text>
-              <Text style={styles.secondaryButtonText}>Similar Dishes</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.secondaryButton}>
-              <Text style={styles.secondaryIcon}>❤️</Text>
-              <Text style={styles.secondaryButtonText}>Add to Favorites</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Nutrition Info */}
-        <View style={styles.nutritionSection}>
-          <Text style={styles.nutritionTitle}>Nutrition Information</Text>
-          <View style={styles.nutritionGrid}>
-            <View style={styles.nutritionItem}>
-              <Text style={styles.nutritionValue}>285</Text>
-              <Text style={styles.nutritionLabel}>Calories</Text>
-            </View>
-            <View style={styles.nutritionItem}>
-              <Text style={styles.nutritionValue}>12g</Text>
-              <Text style={styles.nutritionLabel}>Protein</Text>
-            </View>
-            <View style={styles.nutritionItem}>
-              <Text style={styles.nutritionValue}>36g</Text>
-              <Text style={styles.nutritionLabel}>Carbs</Text>
-            </View>
-            <View style={styles.nutritionItem}>
-              <Text style={styles.nutritionValue}>10g</Text>
-              <Text style={styles.nutritionLabel}>Fat</Text>
-            </View>
-          </View>
+          <TouchableOpacity style={styles.doneButton} onPress={() => router.push("/")}>
+            <Text style={styles.doneText}>✅ Done</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
-
-      
     </SafeAreaView>
-  );
-};
- 
+  )
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: "#f9fafb",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: '#ffffff',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: "center",
+    justifyContent: "center",
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  backButton: {
-    padding: 4,
-  },
-  backIcon: {
-    fontSize: 24,
-    color: '#2D3748',
+    borderBottomColor: "#e5e7eb",
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2D3748',
-  },
-  shareButton: {
-    padding: 4,
-  },
-  shareIcon: {
-    fontSize: 24,
-    color: '#2D3748',
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#2D3748",
   },
   content: {
-    flex: 1,
+    padding: 20,
+    alignItems: "center",
   },
-  imageSection: {
-    position: 'relative',
-    backgroundColor: '#F9FAFB',
-    paddingTop: 20,
-    paddingHorizontal: 20,
-  },
-  foodImage: {
-    width: '100%',
+  imageContainer: {
+    width: "100%",
     height: 280,
     borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 24,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
   },
-  ratingBadge: {
-    position: 'absolute',
-    top: 40,
-    right: 40,
-    backgroundColor: '#ffffff',
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+  dishImage: {
+    width: "100%",
+    height: "100%",
+  },
+  resultContainer: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 24,
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: "#000",
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  ratingIcon: {
-    fontSize: 14,
-  },
-  ratingText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2D3748',
-    marginLeft: 4,
-  },
-  dishInfoSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 24,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
   },
   dishName: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    marginBottom: 16,
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#FF6B35",
+    marginBottom: 12,
+    textAlign: "center",
   },
   dishDescription: {
     fontSize: 16,
-    color: '#6B7280',
-    lineHeight: 24,
-    marginBottom: 24,
+    color: "#4B5563",
+    lineHeight: 22,
+    textAlign: "center",
   },
-  ratingSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  actions: {
+    width: "100%",
+    gap: 14,
   },
-  starsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  star: {
-    fontSize: 16,
-    color: '#FFD700',
-    marginRight: 2,
-  },
-  starEmpty: {
-    fontSize: 16,
-    color: '#E5E7EB',
-    marginRight: 8,
-  },
-  ratingValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2D3748',
-  },
-  reviewsCount: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  actionButtonsSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  primaryButton: {
-    backgroundColor: '#FF6B35',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  locationIcon: {
-    fontSize: 16,
-    marginRight: 8,
-  },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  secondaryButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  retakeButton: {
+    backgroundColor: "#ffffff",
     paddingVertical: 14,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#ffffff',
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
   },
-  secondaryIcon: {
+  retakeText: {
     fontSize: 16,
-    marginRight: 6,
+    fontWeight: "600",
+    color: "#111827",
   },
-  secondaryButtonText: {
-    color: '#6B7280',
-    fontSize: 14,
-    fontWeight: '500',
+  doneButton: {
+    backgroundColor: "#FF6B35",
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
   },
-  nutritionSection: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-    marginTop: 8,
-    paddingTop: 24,
+  doneText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
   },
-  nutritionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2D3748',
-    marginBottom: 16,
-  },
-  nutritionGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  nutritionItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  nutritionValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FF6B35',
-    marginBottom: 4,
-  },
-  nutritionLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    textAlign: 'center',
-  },
-  bottomNav: {
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  navItems: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  navItem: {
-    alignItems: 'center',
-    paddingVertical: 8,
-    flex: 1,
-  },
-  navIcon: {
-    fontSize: 18,
-    marginBottom: 4,
-    opacity: 0.6,
-  },
-  navIconActive: {
-    fontSize: 18,
-    marginBottom: 4,
-    opacity: 1,
-  },
-  navText: {
-    fontSize: 12,
-  },
-  navTextActive: {
-    color: '#FF6B35',
-    fontWeight: '500',
-  },
-  navTextInactive: {
-    color: '#9CA3AF',
-  },
-});
-
-export default DishRecognitionScreen;
+})
