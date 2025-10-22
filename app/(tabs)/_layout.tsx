@@ -1,11 +1,19 @@
+import { useAuth } from '@/context/auth-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { HapticTab } from '@/components/layout/haptic-tab';
 
 export default function TabLayout() {
+  const { user } = useAuth();
+
+  // If no user is logged in, redirect to welcome screen
+  if (!user) {
+    return <Redirect href="/(auth)/welcome" />;
+  }
+
   return (
     <Tabs
       screenOptions={{

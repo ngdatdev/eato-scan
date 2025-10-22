@@ -2,10 +2,12 @@
 
 import { LinearGradient } from "expo-linear-gradient"
 import { useLocalSearchParams, useRouter } from "expo-router"
+import { useState } from "react"
 import { Image, SafeAreaView, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 
 export default function DishRecognitionScreen() {
   const router = useRouter()
+  const [isNavigating, setIsNavigating] = useState(false)
   const { photoUri, name, description } = useLocalSearchParams<{
     photoUri?: string
     name?: string
@@ -43,8 +45,10 @@ export default function DishRecognitionScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={styles.doneButton} 
+            style={[styles.doneButton, isNavigating && styles.disabledButton]} 
+            disabled={isNavigating}
             onPress={() => {
+              setIsNavigating(true);
               const searchQuery = `quán ${name || ''}`.trim();
               router.push({
                 pathname: "/(tabs)/capture/find-nearby-res",
@@ -52,7 +56,9 @@ export default function DishRecognitionScreen() {
               });
             }}
           >
-            <Text style={styles.doneText}>Find near restaurant</Text>
+            <Text style={styles.doneText}>
+              {isNavigating ? 'Finding restaurants...' : 'Find near restaurant'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -158,5 +164,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     color: "#fff",
+  },
+  disabledButton: {
+    backgroundColor: '#ffa182',
+    opacity: 0.8,
   },
 })

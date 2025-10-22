@@ -1,9 +1,10 @@
+import { API_CONFIG, createUrl } from '@/constants/config';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { API_CONFIG, createUrl } from '@/constants/config';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
   Image,
   Linking,
@@ -17,8 +18,12 @@ import {
   View,
 } from 'react-native';
 
+// Cache object to store search results
+const searchCache: Record<string, any> = {};
+
 const SkeletonPlaceCard = () => {
   const animatedValue = React.useMemo(() => new Animated.Value(0), []);
+  const shimmerAnimatedValue = React.useMemo(() => new Animated.Value(-1), []);
 
   useEffect(() => {
     Animated.loop(
@@ -35,20 +40,92 @@ const SkeletonPlaceCard = () => {
         }),
       ])
     ).start();
-  }, [animatedValue]);
+
+    // Shimmer animation
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnimatedValue, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(shimmerAnimatedValue, {
+          toValue: -1,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [animatedValue, shimmerAnimatedValue]);
 
   const opacity = animatedValue.interpolate({
     inputRange: [0, 1],
     outputRange: [0.3, 0.7],
   });
 
+  // Tạo hiệu ứng shimmer
+  const translateX = shimmerAnimatedValue.interpolate({
+    inputRange: [-1, 1],
+    outputRange: [-350, 350],
+  });
+
   return (
     <View style={styles.restaurantCard}>
-      <Animated.View style={[styles.skeletonImage, styles.skeleton, { opacity }]} />
+      <View style={styles.shimmerContainer}>
+        <Animated.View 
+          style={[
+            styles.skeletonImage,
+            styles.skeleton,
+            { opacity }
+          ]} 
+        />
+        <Animated.View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              backgroundColor: 'rgba(255, 255, 255, 0.3)',
+              transform: [{ translateX }]
+            }
+          ]}
+        />
+      </View>
       <View style={styles.restaurantInfo}>
-        <Animated.View style={[styles.skeletonTitle, styles.skeleton, { opacity }]} />
-        <Animated.View style={[styles.skeletonText, styles.skeleton, { opacity }]} />
-        <Animated.View style={[styles.skeletonText, styles.skeleton, { opacity }]} />
+        <View style={styles.shimmerContainer}>
+          <Animated.View style={[styles.skeletonTitle, styles.skeleton, { opacity }]} />
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                transform: [{ translateX }]
+              }
+            ]}
+          />
+        </View>
+        <View style={styles.shimmerContainer}>
+          <Animated.View style={[styles.skeletonText, styles.skeleton, { opacity }]} />
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                transform: [{ translateX }]
+              }
+            ]}
+          />
+        </View>
+        <View style={styles.shimmerContainer}>
+          <Animated.View style={[styles.skeletonText, styles.skeleton, { opacity }]} />
+          <Animated.View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: 'rgba(255, 255, 255, 0.3)',
+                transform: [{ translateX }]
+              }
+            ]}
+          />
+        </View>
       </View>
     </View>
   );
@@ -60,12 +137,44 @@ export default function NearbyPlacesScreen() {
   
   const [location, setLocation] = useState<any>(null);
   const [places, setPlaces] = useState<any[]>([]);
+  const [inputValue, setInputValue] = useState<string>('');
   const [searchText, setSearchText] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Set loading true by default
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  
+  // Refs for managing API calls
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(true);
+
+  // Debounced search handler
+  const debouncedSearch = useCallback((text: string) => {
+    setInputValue(text);
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setSearchText(text);
+    }, 800); // Tăng delay lên 800ms để giảm số lần gọi API
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   // ✅ Lấy vị trí hiện tại và tự động tìm địa điểm gần đó
   useEffect(() => {
     (async () => {
+      setIsLoadingLocation(true);
       try {
         // Yêu cầu quyền truy cập vị trí
         const { status } = await Location.requestForegroundPermissionsAsync();
@@ -82,9 +191,12 @@ export default function NearbyPlacesScreen() {
 
         // Use initial search if provided, otherwise use default search
         const searchQuery = initialSearch || 'quán ăn gần đây';
+        setInputValue(searchQuery);
         setSearchText(searchQuery);
       } catch (error) {
         console.error('Error getting location:', error);
+      } finally {
+        setIsLoadingLocation(false);
       }
     })();
   }, [initialSearch]);
@@ -93,8 +205,22 @@ export default function NearbyPlacesScreen() {
   useEffect(() => {
     if (!location || !searchText) return;
 
+    let isActive = true; // Theo dõi component còn mounted không
+    const controller = new AbortController();
+
     const fetchPlaces = async () => {
-      setIsLoading(true);
+      // Check cache first
+      const cacheKey = `${searchText}_${location.latitude}_${location.longitude}`;
+      if (searchCache[cacheKey] && Date.now() - searchCache[cacheKey].timestamp < 5 * 60 * 1000) {
+        if (isActive) {
+          setPlaces(searchCache[cacheKey].data);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      if (!isLoading && isActive) setIsLoading(true);
+      
       try {
         // ⚡ Gọi qua proxy Express (chạy trên máy dev), thêm hl=vi để trả về tiếng Việt
         const url = createUrl(API_CONFIG.MAPS_API, {
@@ -104,9 +230,13 @@ export default function NearbyPlacesScreen() {
           hl: 'vi'
         });
 
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          signal: controller.signal
+        });
         const data = await res.json();
  
+        if (!isActive) return; // Nếu component đã unmount thì không cập nhật state
+
         const results = data.local_results || [];
         if (results.length === 0) return;
 
@@ -126,21 +256,39 @@ export default function NearbyPlacesScreen() {
             website: r.website || '',
             thumbnail: r.thumbnail || null,
             // fallback ảnh nếu không có thumbnail
-            image: r.thumbnail ? { uri: r.thumbnail } : require('../../../assets/images/restaurant1.png')
-           ,
+            image: r.thumbnail ? { uri: r.thumbnail } : require('../../assets/images/restaurant1.png')
           }));
 
-        // Giới hạn chỉ lấy 10 địa điểm gần nhất
-        setPlaces(mapped.slice(0, 10));
-      } catch (err) {
+        // Cache kết quả với timestamp nếu request thành công
+        if (isActive) {
+          const cacheKey = `${searchText}_${location.latitude}_${location.longitude}`;
+          searchCache[cacheKey] = {
+            data: mapped.slice(0, 10),
+            timestamp: Date.now()
+          };
+          setPlaces(mapped.slice(0, 10));
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          // Bỏ qua lỗi abort vì đây là hành động có chủ ý
+          return;
+        }
         console.error('SerpAPI fetch error:', err);
       } finally {
-        setIsLoading(false);
+        if (isActive) {
+          setIsLoading(false);
+        }
       }
     };
 
     fetchPlaces();
-  }, [location, searchText]);
+
+    // Cleanup function
+    return () => {
+      isActive = false;
+      controller.abort(); // Hủy request khi unmount hoặc deps thay đổi
+    };
+  }, [location, searchText, isLoading]);
 
   // Mở Google Maps khi click vào địa điểm
   const openInGoogleMaps = (place: any) => {
@@ -170,13 +318,46 @@ export default function NearbyPlacesScreen() {
             style={styles.searchInput}
             placeholder="Search nearby (pho, coffee...)"
             placeholderTextColor="#999"
-            value={searchText}
-            onChangeText={setSearchText}
+            value={inputValue}
+            onChangeText={debouncedSearch}
             returnKeyType="search"
-            onSubmitEditing={() => setSearchText((searchText || '').trim())}
+            onSubmitEditing={() => {
+              if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+              }
+              const trimmedText = inputValue.trim();
+              setInputValue(trimmedText);
+              setSearchText(trimmedText);
+            }}
           />
+          {inputValue ? (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={() => {
+                if (searchTimeoutRef.current) {
+                  clearTimeout(searchTimeoutRef.current);
+                }
+                setInputValue('');
+                setSearchText('');
+                setPlaces([]);
+              }}
+            >
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          ) : null}
         </View>
       </View>
+
+      {/* Loading Location Overlay */}
+      {isLoadingLocation && (
+        <View style={styles.loadingOverlay}>
+          <View style={styles.loadingContent}>
+            <Ionicons name="location" size={24} color="#FF6B35" />
+            <Text style={styles.loadingText}>Getting your location...</Text>
+            <ActivityIndicator size="small" color="#FF6B35" style={{ marginLeft: 8 }} />
+          </View>
+        </View>
+      )}
 
       {/* Places List */}
       <View style={styles.content}>
@@ -186,7 +367,7 @@ export default function NearbyPlacesScreen() {
         </View>
 
         <ScrollView style={styles.restaurantList} showsVerticalScrollIndicator={false}>
-          {isLoading ? 
+          {(isLoading || isLoadingLocation) ? 
             Array.from({ length: 3 }).map((_, index) => (
               <SkeletonPlaceCard key={index} />
             ))
@@ -289,6 +470,14 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: '#333',
+    paddingRight: 32, // Để nút clear không đè lên text
+  },
+  clearButton: {
+    position: 'absolute',
+    right: 16,
+    top: '50%',
+    transform: [{ translateY: -10 }],
+    padding: 4,
   },
   filterButton: {
     width: 44,
@@ -513,6 +702,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E1E9EE',
     borderRadius: 4,
     overflow: 'hidden',
+    position: 'relative',
   },
   skeletonImage: {
     width: '100%',
@@ -529,5 +719,40 @@ const styles = StyleSheet.create({
     width: '60%',
     height: 16,
     marginBottom: 8,
+  },
+  shimmerContainer: {
+    position: 'relative',
+    overflow: 'hidden',
+    backgroundColor: '#E1E9EE',
+    borderRadius: 4,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '600',
   }
 });

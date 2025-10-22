@@ -2,24 +2,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React from 'react';
 import {
-    SafeAreaView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 
 export default function WelcomeScreen() {
   const handleGetStarted = () => {
     // Navigate to main app (tabs)
-    router.replace('/(tabs)');
+    router.replace('/login');
   };
 
   const handleLogin = () => {
     // Navigate to login screen (you can create later)
     console.log('Navigate to Login');
     // For now, just go to main app
-    router.replace('/(tabs)');
+    router.replace('/login');
   };
 
   return (
@@ -82,14 +82,14 @@ export default function WelcomeScreen() {
         </View>
 
         {/* Text Content */}
-        <View style={styles.textSection}>
+        {/* <View style={styles.textSection}>
           <Text style={styles.mainTitle}>Discover food{'\n'}around you with AI</Text>
           <Text style={styles.subtitle}>
             Scan, explore, and find amazing{'\n'}
             dishes with the power of artificial{'\n'}
             intelligence
           </Text>
-        </View>
+        </View> */}
 
         {/* Action Buttons */}
         <View style={styles.buttonSection}>
@@ -109,6 +109,14 @@ export default function WelcomeScreen() {
           <Text style={styles.termsText}>
             By continuing, you agree to our{' '}
             <Text style={styles.termsLink}>Terms &{'\n'}Privacy</Text>
+          </Text>
+        </View>
+         <View style={styles.textSection}>
+          <Text style={styles.mainTitle}>Discover food{'\n'}around you with AI</Text>
+          <Text style={styles.subtitle}>
+            Scan, explore, and find amazing{'\n'}
+            dishes with the power of artificial{'\n'}
+            intelligence
           </Text>
         </View>
       </View>
@@ -132,17 +140,17 @@ const styles = StyleSheet.create({
   },
   logoSection: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 40,
+    marginTop: 10,
+    marginBottom: 20,
   },
   logoContainer: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     backgroundColor: '#FF6B35',
-    borderRadius: 20,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
     shadowColor: '#FF6B35',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -156,11 +164,11 @@ const styles = StyleSheet.create({
   },
   illustrationContainer: {
     alignItems: 'center',
-    marginVertical: 40,
+    marginVertical: 20,
   },
   phoneFrame: {
-    width: 200,
-    height: 300,
+    width: 160,
+    height: 240,
     backgroundColor: '#333',
     borderRadius: 25,
     padding: 8,
@@ -211,21 +219,21 @@ const styles = StyleSheet.create({
   },
   textSection: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   mainTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 36,
+    marginBottom: 12,
+    lineHeight: 32,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 20,
   },
   buttonSection: {
     gap: 16,
@@ -234,9 +242,9 @@ const styles = StyleSheet.create({
   getStartedButton: {
     flexDirection: 'row',
     backgroundColor: '#FF6B35',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#FF6B35',
@@ -247,15 +255,15 @@ const styles = StyleSheet.create({
   },
   getStartedText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   loginButton: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 20,
     borderWidth: 2,
     borderColor: '#FF6B35',
     justifyContent: 'center',
@@ -263,7 +271,7 @@ const styles = StyleSheet.create({
   },
   loginText: {
     color: '#FF6B35',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
   },
   buttonIcon: {
